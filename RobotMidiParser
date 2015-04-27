@@ -1,0 +1,86 @@
+
+		
+def readHeader(f):
+	
+	#first 4 bytes are the chunk type. first chunk must be the header or else we quit! 
+	#Also check for length being 6 (the expected length of a Header chunk, and check for format as 0. We won't be using any other format)
+
+	if ( int.from_bytes(f.read(4),byteorder= 'big') == 6 and int.from_bytes(f.read(2), byteorder = 'big') == 0 and int.from_bytes(f.read(2) , byteorder = 'big')== 1 ):
+		print("stuff is good")
+		time = int.from_bytes(f.read(2), byteorder = 'big') #we need to parse the bits in this to get our delta time units. This gets confusing
+		return time
+	else:
+		return None
+	
+def readTrack(f):
+
+	deltaTime = 0
+	event = None
+	note = 0
+	index = 0
+	song = [] #this will be what is returned
+	length = int.from_bytes(f.read(4), byteorder = 'big')
+	data = f.read()
+	timeNotFound = True #checks which pair of the deltaTime/event pair we are looking for
+	countBytes = 0
+	
+	#read bytes
+	
+	#keep reading for the entire length that the track was determined to be
+	for i in range(length):
+		currentByte = f.read(1) #read a single byte
+		currentByteInt = int.from_bytes(currentByte, byteorder = 'big')
+		i#f no deltaTime has been found for the deltaTime/event pair then first find delta time in this loop's iteration
+		if (timeNotFound):
+			deltaTime += currentByteInt
+			if (currentByteInt & 7  == 0): #check MSbit. last byte in delta time is signified by a MSBit of 0
+				timeNotFound = False
+		#find event
+		else:
+			countBytes += 1
+			if (countBytes == 1): #check what the message is
+				event = currentByteInt
+			else:
+				if (event == 144 and countBytes == 2): #note event, byte 2 is the note number, 3rd byte is velocity I'm not fucking with that
+					note = currentByteInt
+				if (event == 255 and currentByteInt == 47): #meta event. We're just looking for the message that would prematurely end the track (apparently the length isn't always accurate so this is always here)
+					break
+			if (countBytes == 3): # end of event. update stuff
+				song.append((note, deltaTime)) #add the note to the list
+				index += 1
+				note =  0
+				countBytes = 0
+				deltaTime = 0
+				timeNotFound = True
+				
+			
+	return song
+	
+	
+import create
+#import binascii
+
+#r = create.Create(3)
+timeUnit = None
+chunkLen = None
+song = None
+
+filename = input("Enter file name: ")
+
+with open(filename, 'rb') as f:
+	#print(f.read(4))
+	if (f.read(4) == b"MThd"):
+		print("found header")
+		timeUnit = readHeader(f)
+	if (timeUnit != None and f.read(4) == b"MTrk"):
+		print("found track")
+		song = readTrack(f)
+	f.close()
+		
+#r.playSong(song) #remove comment when we're done
+print(song)
+	
+
+f.close()
+	
+	
